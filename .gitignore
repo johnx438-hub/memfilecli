@@ -1,0 +1,17 @@
+# Build artifacts
+target/
+Cargo.lock
+
+# Database files
+.memfilecli_db/
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
