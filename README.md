@@ -2,7 +2,7 @@
 
 **结构化记忆检索引擎** — Rust CLI + ChromaDB，支持 Ollama/OpenAI 嵌入。
 
-轻量级、配置驱动的记忆/笔记语义搜索工具，适合个人知识库、日记、Obsidian vault 等场景。（作者本地Agent自己在wsl2 ubuntu用，目前还没测过其他环境。）
+轻量级、配置驱动的记忆/笔记语义搜索工具，适合个人知识库、日记、Obsidian vault 等场景。可作为利用Markdown文件做记忆文件夹的记忆目录，返回文件名，时间和片段。（作者本地Agent自己在wsl2 ubuntu用，目前还没测过其他环境。）
 
 ## ✨ 特性
 
