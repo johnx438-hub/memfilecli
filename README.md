@@ -101,25 +101,25 @@ memfilecli index --dir /path/to/directory
 │ Ollama API  │     │ JSON stdin   │     │ Cosine      │
 │ OpenAI API  │     │ stdout       │     │ Similarity  │
 └─────────────┘     └──────────────┘     └─────────────┘
-🕵️‍♂️ （Fresh Install Test）
+🕵️‍♂️ 可能遇到的问题（Fresh Install Test）
     编译时间太长 ⏳
-*      问题：Rust 的 cargo build --release 第一次编译非常慢（尤其是带了很多依赖的时候）。用户            可 能会以为电脑卡死了。
+*      问题：Rust 的 cargo build --release 第一次编译非常慢（尤其是带了很多依赖的时候）。用户可能会以为电脑卡死了。
 *   “首次编译可能需要几分钟，请耐心等待”。
        Ollama 模型没拉取 🤖 (这是最大的坑！)
-*      问题：用户装了 Ollama，但里面是空的。运行 memfilecli index 时，Rust 会尝试调用 API，        如果找不到 qwen3-embedding:8b或嵌入模型，就会报错或者静默失败。
+*      问题：用户装了 Ollama，但里面是空的。运行 memfilecli index 时，Rust 会尝试调用 API，如果找不到 qwen3-embedding:8b或嵌入模型，就会报错或者静默失败。
 *   建议：ollama pull qwen3-embedding:8b
     
     Python 依赖缺失 🐍
 *       问题：Rust 二进制文件跑起来了，但调用 Python 脚本时提示 ModuleNotFoundError:  
 *          No   module named 'chromadb'。路人可能会懵：“我明明装了 Rust 啊？”
-*          建议：在 README 的安装步骤里，把 pip install chromadb 加粗显示！
+*   
      默认路径不匹配 📂
 *      问题：代码里的 Default 实现是 /home/archer/memory_vault。
 *        如果是 macOS 或者  Windows，第一次运行可能会报错说找不到目录。
-*        建议：引导用户第一时间运行 memfilecli init，这个交互式向导会自动帮他们创建正确的路  径和 配置文件。
+*        建议：引导用户第一时间运行 memfilecli init，这个交互式向导会自动帮他们创建正确的路径和配置文件。
 5. Rust + Python 的“混搭”困惑 🧩
 *   问题：可能会问：“为什么我下载了一个 Rust 工具，却还要装 Python？”
-*   建议：我们在 README 里已经画了架构图（Rust 负责思考，Python 负责干活），这能很好地解释原因。```
+*   建议：参考架构图（Rust 负责思考，Python 负责干活），```
 ```
 ## 📝 License
 MIT License. See [LICENSE](LICENSE) for details.
