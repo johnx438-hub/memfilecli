@@ -1,6 +1,6 @@
 # MemFileCLI 🧠
 **结构化记忆检索引擎** — Rust CLI + ChromaDB，支持 Ollama/OpenAI 嵌入。
-轻量级、配置驱动的记忆/笔记语义搜索工具，适合个人知识库、日记、Obsidian vault 等场景。（作者自用Agent搓得一个记忆文件语义目录小工具，只在wsl2 ubuntu中跑过，其他环境尚未测试，属于自用小玩具，轻喷👀)
+轻量级、配置驱动的记忆/笔记语义搜索工具，适合个人知识库、日记、Obsidian vault 等场景。
 ## ✨ 特性
 - 🔍 **语义搜索**：基于向量相似度，理解自然语言查询
 - 🚀 **高性能**：Rust CLI + ChromaDB，毫秒级响应
