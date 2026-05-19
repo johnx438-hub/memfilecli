@@ -1,17 +1,18 @@
 # MemFileCLI 
 一个适合使用高精度向量存储的本地轻量文件语义检索工具 — Rust CLI + ChromaDB，支持 Ollama/OpenAI 嵌入。
 轻量级、配置驱动的记忆/笔记语义搜索，适合个人知识库、日记、Obsidian vault 等场景。
-##  基本介绍
--  **语义搜索**：基于向量相似度，理解自然语言查询
--  **组成**：Rust CLI + Python转发 + ChromaDB，通过转发实现绕过ChromaDB向量维度锁，主要目的是保留ChromaDB无需起服务和支持元数据的特性同时使用高精度向量
--  **双后端嵌入**：Ollama（本地免费）/ OpenAI Compatible API
--  **有效切片**：Markdown 标题切分 + 长度降级
--  **增量索引**：检测文件变更，只更新修改过的内容/更新或新增Markdown文件后只需命令 memfilecli index --all 即可。
--  **全配置化**：JSON 配置文件，也可选择memfilecli init命令进入引导式配置。
+Lightweight, configuration-driven memory/note semantic search, suitable for scenarios such as personal knowledge bases, diaries, and Obsidian vaults.
+##  基本介绍 (Basic Introduction)
+-  **语义搜索(semantic search)**：基于向量相似度，理解自然语言查询 Understanding Natural Language Queries Based on Vector Similarity
+-  **组成(composition)**：Rust CLI + Python转发 + ChromaDB，通过转发实现绕过ChromaDB向量维度锁，主要目的是保留ChromaDB无需起服务和支持元数据的特性同时使用高精度向量 This project uses Rust CLI, Python forwarding, and ChromaDB to bypass ChromaDB's vector dimension lock. The main goal is to retain ChromaDB's ability to operate without requiring services or supporting metadata while utilizing high-precision vectors.
+-  **双后端嵌入（Supported embedding methods)**：Ollama（本地免费）/ OpenAI Compatible API
+-  **切片规则（Embedded rules）**：Markdown 标题切分 + 长度降级 Markdown heading segmentation + length reduction
+-  **增量索引（Index Method）**：检测文件变更，只更新修改过的内容/更新或新增Markdown文件后只需命令 memfilecli index --all 即可。To detect file changes and update only the modified content, or after updating or adding a Markdown file, simply use the command `memfilecli index --all`.
+-  **全配置化(Fully configurable)**：JSON 配置文件，也可选择memfilecli init命令进入引导式配置。A JSON configuration file can be used, or the memfilecli init command can be selected to enter the guided configuration.
 ## 💡 思路 (Design Philosophy)
 `memfilecli` 是一个**语义索引**。
-*   **轻量**：不直接展示全文，返回**文件名、时间戳和内容片段**。
-*   **推荐**：最适合配合结构化的 Markdown 文件（如 Obsidian/Logseq）和 LLM 的自动整理逻辑使用。
+*   **轻量**：不直接展示全文，返回**文件名、时间戳和内容片段Instead of displaying the full text, it returns the filename, timestamp, and a snippet of the content.**。
+*   **推荐**：最适合配合结构化的 Markdown 文件（如 Obsidian/Logseq）和 LLM 的自动整理逻辑使用It is best suited for use with structured Markdown files (such as Obsidian/Logseq) and LLM's automatic formatting logic.。
 *   **工作流示例**：
     1.  记录结构化的 Markdown 笔记到 `memory_vault`。
     2.  `memfilecli index` 建立语义索引。
@@ -19,7 +20,7 @@
     4.  Agent根据返回的文件名，主动读取并整理出逻辑清晰的内容分类。
 > **个人看法**：此工具是文件的“语义目录”，Agent作为辅助整理回溯的“图书管理员”。📚
 ## 📦 安装
-### 前置依赖
+### 前置依赖Pre-dependencies
 ```bash
 # Python 3.8+
 python3 --version
@@ -28,14 +29,14 @@ pip install chromadb
 # Rust（编译需要）
 cargo --version
 ```
-### 从源码编译
+### 从源码编译Compile from source code
 ```bash
 git clone https://github.com/yourusername/memfilecli.git
 cd memfilecli
 cargo build --release
 cp target/release/memfilecli ~/.local/bin/
 ```
-### 快速开始
+### 快速开始Start Process
 ```bash
 # 1. 初始化配置（交互式向导）
 memfilecli init
@@ -44,7 +45,7 @@ memfilecli index --all
 # 3. 搜索
 memfilecli search "你的问题" --limit 5 --threshold 50
 ```
-## ⚙️ 配置
+## ⚙️ 配置Configuration
 配置文件位于 `~/.config/memfilecli/config.json`：
 ```json
 {
@@ -70,7 +71,7 @@ memfilecli search "你的问题" --limit 5 --threshold 50
     }
 }
 ```
-## 📖 命令参考
+## 📖 命令参考Command Reference
 | 命令 | 说明 |
 |------|------|
 | `memfilecli init` | 交互式配置向导 |
