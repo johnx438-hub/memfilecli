@@ -6,18 +6,18 @@
 -  **组成**：Rust CLI + Python转发 + ChromaDB，通过转发实现绕过ChromaDB向量维度锁，主要目的是保留ChromaDB无需起服务和支持元数据的特性同时使用高精度向量
 -  **双后端嵌入**：Ollama（本地免费）/ OpenAI Compatible API
 -  **有效切片**：Markdown 标题切分 + 长度降级
--  **增量索引**：检测文件变更，只更新修改过的内容
--  **全配置化**：JSON 配置文件，支持跨机器部署
+-  **增量索引**：检测文件变更，只更新修改过的内容/更新或新增Markdown文件后只需命令 memfilecli index --all 即可。
+-  **全配置化**：JSON 配置文件，也可选择memfilecli init命令进入引导式配置。
 ## 💡 思路 (Design Philosophy)
 `memfilecli` 是一个**语义索引**。
 *   **轻量**：不直接展示全文，返回**文件名、时间戳和内容片段**。
 *   **推荐**：最适合配合结构化的 Markdown 文件（如 Obsidian/Logseq）和 LLM 的自动整理逻辑使用。
 *   **工作流示例**：
-    1.  每天记录结构化的 Markdown 笔记到 `memory_vault`。
+    1.  记录结构化的 Markdown 笔记到 `memory_vault`。
     2.  `memfilecli index` 建立语义索引。
-    3.  当需要查阅文件时，搜索关键词获取“文件名 + 片段”。
+    3.  当需要查阅文件时，使用memfilecli search搜索关键词获取“文件名 + 片段”。
     4.  Agent根据返回的文件名，主动读取并整理出逻辑清晰的内容分类。
-> **个人看法**：是文件的“目录”，Agent作为辅助整理回溯的“图书管理员”。📚
+> **个人看法**：此工具是文件的“语义目录”，Agent作为辅助整理回溯的“图书管理员”。📚
 ## 📦 安装
 ### 前置依赖
 ```bash
