@@ -1,0 +1,38 @@
+---
+name: MemFileCli-Skill
+description: 记忆工具/使用memfilecli search配合关键词加limit即可搜索记忆文件；使用memfilecli index --all即可索引新记忆文件或是更新改动内容
+---
+
+# MemFileCLI Skill 🧠
+
+**Path**: `~/.local/bin/memfilecli`
+
+## Commands
+
+### 🔍 Search Memories
+Search the indexed memory files using vector similarity.
+```bash
+memfilecli search "<query>" --limit 5
+```
+*   **Usage**: When user asks to find specific memories, notes, or past conversations.
+*   **Note**: If `--threshold` is needed (e.g., for high precision), add it explicitly.
+
+### 🛡️ Verify Environment
+Check Ollama connection and available models.
+```bash
+memfilecli verify
+```
+*   **Usage**: When user asks about system status, or if search fails unexpectedly.
+
+### 📥 Update Index
+Re-index all memory files (incremental).
+```bash
+memfilecli index --all
+```
+*   **Usage**: After new memories are written to `memory_vault/`.
+
+## Fallback Strategy
+If Rust CLI fails (e.g., Ollama connection error), fallback to the legacy Python tool:
+```bash
+python3 /home/archer/.opencode/tools/memcli.py search "<query>"
+```
