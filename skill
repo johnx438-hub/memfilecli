@@ -17,7 +17,7 @@ memfilecli search "<query>" --limit 5
 *   **Usage**: When user asks to find specific memories, notes, or past conversations.
 *   **Note**: If `--threshold` is needed (e.g., for high precision), add it explicitly.
 
-### 🛡️ Verify Environment
+### 🛡️ Verify Environment（An Option if you need to conirm）
 Check Ollama connection and available models.
 ```bash
 memfilecli verify
