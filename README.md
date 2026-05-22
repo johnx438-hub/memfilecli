@@ -81,7 +81,8 @@ memfilecli search "你的问题" --limit 5 --threshold 50
 | `memfilecli stats` | 查看索引统计 |
 | `memfilecli verify` | 检查环境依赖 |
 | `memfilecli list-files` | 列出已索引文件 |
-### 搜索参数
+| `memfilecli search -h` | 查看搜索可带参数 |
+### 常用搜索参数
 ```bash
 # 基本搜索
 memfilecli search "你的搜索关键词KeyWords" --limit 5
