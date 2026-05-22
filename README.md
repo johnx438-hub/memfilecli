@@ -89,6 +89,15 @@ memfilecli search "今天做了什么" --limit 5
 memfilecli search "memfilecli" --threshold 50
 # 指定目录索引
 memfilecli index --dir /path/to/directory
+# 原始基础搜索（限制结果数量）
+memfilecli search "你的搜索关键词" --limit 5
+
+# 新增时间筛选后 - 单时间边界
+memfilecli search "关键词" --after 20260521  # 只显示2026年5月21日及之后的结果
+memfilecli search "关键词" --before 20260521 # 只显示2026年5月21日之前的结果
+
+# 时间范围筛选（组合使用）
+memfilecli search "关键词" --after 20260401 --before 20260430
 ```
 ## 🏗️ 架构
 ```
