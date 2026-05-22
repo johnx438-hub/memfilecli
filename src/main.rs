@@ -270,14 +270,14 @@ impl IndexManager {
 #[derive(Subcommand)] enum Commands {
     Init, Config,
     Index { #[arg(long)] all: bool, #[arg(long)] dir: Option<String>, #[arg(long)] force_ollama: bool, #[arg(long)] rebuild: bool },
-    Search { query: String, #[arg(short, long)] limit: Option<usize>, #[arg(long)] threshold: Option<u8> },
+    Search { query: String, #[arg(short, long)] limit: Option<usize>, #[arg(long)] threshold: Option<u8>, #[arg(long, help = "Only show results on or after this date (YYYYMMDD)")] after: Option<String>, #[arg(long, help = "Only show results before this date (YYYYMMDD)")] before: Option<String> },
     Stats, Verify, ListFiles,
 }
 
 fn read_line() -> Result<String> { let mut input = String::new(); std::io::stdin().read_line(&mut input)?; Ok(input) }
 
 pub struct IndexArgs { pub all: bool, pub dir: Option<String>, pub force_ollama: bool, pub rebuild: bool }
-pub struct SearchArgs { pub query: String, pub limit: Option<usize>, pub threshold: Option<u8> }
+pub struct SearchArgs { pub query: String, pub limit: Option<usize>, pub threshold: Option<u8>, pub after: Option<String>, pub before: Option<String> }
 
 fn cmd_search(args: &SearchArgs) -> Result<()> {
     let config = Config::load()?;
@@ -306,7 +306,9 @@ fn cmd_search(args: &SearchArgs) -> Result<()> {
         "query_text": args.query,
         "query_embedding": query_embedding,
         "limit": limit,
-        "threshold": threshold as f64
+        "threshold": threshold as f64,
+        "date_after": args.after.clone(),
+        "date_before": args.before.clone()
     });
     
     let mut child = Command::new("python3")
@@ -603,7 +605,7 @@ fn main() -> Result<()> {
         Commands::Init => cmd_init(),
         Commands::Config => cmd_config(),
         Commands::Index { all: _, dir, force_ollama, rebuild } => cmd_index(&IndexArgs { all: true, dir, force_ollama, rebuild }),
-        Commands::Search { query, limit, threshold } => cmd_search(&SearchArgs { query, limit, threshold }),
+        Commands::Search { query, limit, threshold, after, before } => cmd_search(&SearchArgs { query, limit, threshold, after, before }),
         Commands::Stats => cmd_stats(),
         Commands::Verify => cmd_verify(),
         Commands::ListFiles => cmd_list_files(),

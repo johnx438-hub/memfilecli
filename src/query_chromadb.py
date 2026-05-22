@@ -10,6 +10,8 @@ query_embedding = payload.get("query_embedding", None)  # Pre-computed vector fr
 query_text = payload.get("query_text", "")               # Fallback text for ChromaDB to embed
 limit = payload.get("limit", 5)
 threshold = payload.get("threshold", 30.0)
+date_after = payload.get("date_after")
+date_before = payload.get("date_before")
 
 client = chromadb.PersistentClient(path=db_path)
 try:
@@ -33,7 +35,8 @@ else:
 
 results = collection.query(**query_kwargs)
 
-# Output results with threshold filtering
+# Output results with threshold filtering and optional date post-filter
+filtered_results = []
 for i in range(len(results["ids"][0])):
     dist = results["distances"][0][i]
     score = max(0, 1 - dist) * 100
@@ -44,10 +47,21 @@ for i in range(len(results["ids"][0])):
     
     doc = results["documents"][0][i]
     meta = results["metadatas"][0][i]
+    date_str = meta.get("date", "unknown")
     
-    print(json.dumps({
+    # Post-filter by date range (ChromaDB $gte/$lte only works on numeric types)
+    if date_after and date_str < date_after:
+        continue
+    if date_before and date_str > date_before:
+        continue
+    
+    filtered_results.append(json.dumps({
         "score": round(score, 1),
         "filename": meta.get("filename", "unknown"),
-        "date": meta.get("date", "unknown"),
+        "date": date_str,
         "doc": doc[:500]
     }))
+
+# Output only results that passed all filters (up to limit)
+for line in filtered_results[:limit]:
+    print(line)
