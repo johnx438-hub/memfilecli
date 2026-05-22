@@ -1,6 +1,6 @@
 ---
 name: MemFileCli-Skill
-description: 记忆工具/使用memfilecli search配合关键词加limit即可搜索记忆文件；使用memfilecli index --all即可索引新记忆文件或是更新改动内容/ ✅ Added: （chunk数量）是已经索引完成的信号
+description: 记忆工具/使用memfilecli search配合关键词加limit即可搜索记忆文件；使用memfilecli index --all即可索引新记忆文件或是更新改动内容
 ---
 
 # MemFileCLI Skill 🧠
@@ -15,9 +15,16 @@ Search the indexed memory files using vector similarity.
 memfilecli search "<query>" --limit 5
 ```
 *   **Usage**: When user asks to find specific memories, notes, or past conversations.
+*   **Date Filtering** (optional):
+    ```bash
+    memfilecli search "<query>" --after 20260521          # Only results on/after this date
+    memfilecli search "<query>" --before 20260521         # Only results before this date
+    memfilecli search "<query>" --after 20260401 --before 20260430  # Date range
+    ```
+    Dates use YYYYMMDD format (extracted from filenames). Filtering is done post-query in Python since ChromaDB's `$gte`/`$lte` only supports numeric types.
 *   **Note**: If `--threshold` is needed (e.g., for high precision), add it explicitly.
 
-### 🛡️ Verify Environment（An Option if you need to conirm）
+### 🛡️ Verify Environment
 Check Ollama connection and available models.
 ```bash
 memfilecli verify
@@ -31,4 +38,8 @@ memfilecli index --all
 ```
 *   **Usage**: After new memories are written to `memory_vault/`.
 
+## Fallback Strategy
+If Rust CLI fails (e.g., Ollama connection error), fallback to the legacy Python tool:
+```bash
+python3 /home/archer/.opencode/tools/memcli.py search "<query>"
 ```
