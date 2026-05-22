@@ -1,5 +1,5 @@
 # MemFileCLI 
-一个适合使用高精度向量存储的本地轻量文件语义检索工具 — Rust CLI + ChromaDB，支持 Ollama/OpenAI 嵌入。
+一个适合使用高精度向量存储的本地轻量文件语义检索工具 — Rust CLI + ChromaDB，支持 Ollama/OpenAI 嵌入。(为了解决启动协议中 语义搜索返回旧档案的问题，给工具增加了 `--after` / `--before` 日期范围过滤功能。)
 轻量级、配置驱动的记忆/笔记语义搜索，适合个人知识库、日记、Obsidian vault 等场景。
 Lightweight, configuration-driven memory/note semantic search, suitable for scenarios such as personal knowledge bases, diaries, and Obsidian vaults.
 ##  基本介绍 (Basic Introduction)
