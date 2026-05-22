@@ -84,20 +84,17 @@ memfilecli search "你的问题" --limit 5 --threshold 50
 ### 搜索参数
 ```bash
 # 基本搜索
-memfilecli search "今天做了什么" --limit 5
+memfilecli search "你的搜索关键词KeyWords" --limit 5
 # 设置最低匹配度阈值（30-100）
 memfilecli search "memfilecli" --threshold 50
 # 指定目录索引
 memfilecli index --dir /path/to/directory
-# 原始基础搜索（限制结果数量）
-memfilecli search "你的搜索关键词" --limit 5
+# 时间筛选 - 单时间边界
+memfilecli search "关键词KeyWords" --after 20260521  # 只显示2026年5月21日及之后的结果Results After May21st
+memfilecli search "关键词KeyWords" --before 20260521 # 只显示2026年5月21日之前的结果Results Before May21st
 
-# 新增时间筛选后 - 单时间边界
-memfilecli search "关键词" --after 20260521  # 只显示2026年5月21日及之后的结果
-memfilecli search "关键词" --before 20260521 # 只显示2026年5月21日之前的结果
-
-# 时间范围筛选（组合使用）
-memfilecli search "关键词" --after 20260401 --before 20260430
+# 时间范围筛选（组合使用）Combine two Date Range Command toghether For Date Range Search  
+memfilecli search "关键词KeyWords" --after 20260401 --before 20260430
 ```
 ## 🏗️ 架构
 ```
