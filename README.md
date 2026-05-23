@@ -31,7 +31,7 @@ cargo --version
 ```
 ### 从源码编译Compile from source code
 ```bash
-git clone https://github.com/yourusername/memfilecli.git
+git clone https://github.com/johnx438-hub/memfilecli.git
 cd memfilecli
 cargo build --release
 cp target/release/memfilecli ~/.local/bin/
