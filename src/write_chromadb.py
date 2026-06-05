@@ -1,6 +1,7 @@
 import chromadb
 import sys
 import json
+from collections import Counter
 
 # Read JSON payload from stdin
 payload = json.loads(sys.stdin.read())
@@ -35,20 +36,35 @@ for item_id in all_data['ids']:
 if ids_to_delete:
     collection.delete(ids=ids_to_delete)
 
-# Step 2: Add new chunks with embeddings from Rust
+# Step 2: Calculate total chunks per file (for clustering metadata)
+filename_counts = Counter(filenames)
+
+# Step 3: Add new chunks with enhanced metadata for clustering
 new_ids = []
 docs = []
 metas = []
+chunk_order_counter = {}  # Track order within each file
+
 for i, (filename, date_str, doc) in enumerate(zip(filenames, dates, chunks)):
     chunk_id = f"{filename}_chunk_{i}"
     new_ids.append(chunk_id)
     docs.append(doc)
+    
+    # Track chunk order (1-based) for this file
+    if filename not in chunk_order_counter:
+        chunk_order_counter[filename] = 0
+    chunk_order_counter[filename] += 1
+    
     metas.append({
         "source": filename,
         "filename": filename,
         "date": date_str,
         "type": "memory",
-        "chunk_index": i
+        "chunk_index": i,
+        # New clustering metadata
+        "parent_file": filename,
+        "total_chunks": filename_counts[filename],
+        "chunk_order": chunk_order_counter[filename]
     })
 
 if new_ids:

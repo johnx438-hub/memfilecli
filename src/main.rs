@@ -335,20 +335,8 @@ fn cmd_search(args: &SearchArgs) -> Result<()> {
         return Ok(());
     }
     
-    #[derive(serde::Deserialize)] struct SearchResult { score: f64, filename: String, date: String, doc: String }
-    let results: Vec<SearchResult> = stdout.lines()
-        .filter_map(|line| serde_json::from_str::<SearchResult>(line).ok())
-        .collect();
-    
-    for (i, result) in results.iter().enumerate() {
-        println!("--- [{}] 匹配度: {:.1}% ---", i + 1, result.score);
-        println!("📄 文件: {}", result.filename.bright_cyan());
-        println!("📅 日期: {}", result.date.bright_yellow());
-        let preview: String = result.doc.chars().take(300).collect();
-        let preview = if result.doc.chars().count() > 300 { format!("{}...", preview) } else { preview };
-        println!("📝 内容: {}", preview);
-        println!();
-    }
+    // Directly pass through Python's clustered and formatted output
+    print!("{}", stdout);
     
     Ok(())
 }

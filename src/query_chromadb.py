@@ -1,6 +1,7 @@
 import chromadb
 import sys
 import json
+from collections import defaultdict
 
 # Read JSON payload from stdin
 payload = json.loads(sys.stdin.read())
@@ -22,7 +23,7 @@ except Exception as e:
 
 # Build query kwargs - use vector if available, otherwise text
 query_kwargs = {
-    "n_results": limit,
+    "n_results": limit * 3,  # Get more candidates for clustering
     "include": ["documents", "metadatas", "distances"]
 }
 
@@ -35,8 +36,8 @@ else:
 
 results = collection.query(**query_kwargs)
 
-# Output results with threshold filtering and optional date post-filter
-filtered_results = []
+# Step 1: Collect all results with threshold and date filtering
+raw_results = []
 for i in range(len(results["ids"][0])):
     dist = results["distances"][0][i]
     score = max(0, 1 - dist) * 100
@@ -55,13 +56,54 @@ for i in range(len(results["ids"][0])):
     if date_before and date_str > date_before:
         continue
     
-    filtered_results.append(json.dumps({
+    raw_results.append({
         "score": round(score, 1),
         "filename": meta.get("filename", "unknown"),
         "date": date_str,
-        "doc": doc[:500]
-    }))
+        "doc": doc[:500],
+        "chunk_index": meta.get("chunk_index", 0),
+        "parent_file": meta.get("parent_file", meta.get("filename", "unknown")),
+        "total_chunks": meta.get("total_chunks", 1),
+        "chunk_order": meta.get("chunk_order", 0)
+    })
 
-# Output only results that passed all filters (up to limit)
-for line in filtered_results[:limit]:
-    print(line)
+# Step 2: Cluster by parent_file (group results by file)
+file_groups = defaultdict(list)
+for result in raw_results:
+    key = result["parent_file"]
+    file_groups[key].append(result)
+
+# Step 3: Sort each group by chunk_order (1-based sequence within file)
+for key in file_groups:
+    file_groups[key].sort(key=lambda x: x["chunk_order"])
+
+# Step 4: Sort groups by highest score in each group (best matching files first)
+sorted_groups = sorted(file_groups.values(), 
+                       key=lambda g: max(r["score"] for r in g), 
+                       reverse=True)
+
+# Step 5: Format output - limit to original limit number of files, max 2 chunks per file
+output_count = 0
+for group in sorted_groups:
+    if output_count >= limit:
+        break
+    
+    # Take at most 2 chunks per file (to keep output concise)
+    selected_chunks = group[:min(2, len(group))]
+    
+    # Print file header
+    filename = group[0]["parent_file"]
+    date_str = group[0]["date"]
+    total_hit = len(selected_chunks)
+    total_available = group[0]["total_chunks"]
+    
+    print(f"--- 📄 {filename} ---")
+    print(f"📅 日期：{date_str} | 🧩 命中切片：{total_hit}/{total_available}")
+    print()
+    
+    for chunk in selected_chunks:
+        print(f"━━━ [切片 {chunk['chunk_order']}/{total_available}] 匹配度：{chunk['score']}% ━━━")
+        print(chunk["doc"])
+        print()
+    
+    output_count += len(selected_chunks)
