@@ -64,7 +64,9 @@ for i in range(len(results["ids"][0])):
         "chunk_index": meta.get("chunk_index", 0),
         "parent_file": meta.get("parent_file", meta.get("filename", "unknown")),
         "total_chunks": meta.get("total_chunks", 1),
-        "chunk_order": meta.get("chunk_order", 0)
+        "chunk_order": meta.get("chunk_order", 0),
+        # Phase 2: Include UUID for Agent reference
+        "uuid": meta.get("uuid", "N/A")
     })
 
 # Step 2: Cluster by parent_file (group results by file)
@@ -102,7 +104,8 @@ for group in sorted_groups:
     print()
     
     for chunk in selected_chunks:
-        print(f"━━━ [切片 {chunk['chunk_order']}/{total_available}] 匹配度：{chunk['score']}% ━━━")
+        uuid_short = chunk.get('uuid', 'N/A')[:8] if chunk.get('uuid', 'N/A') != 'N/A' else 'N/A'
+        print(f"━━━ [切片 {chunk['chunk_order']}/{total_available}] 匹配度：{chunk['score']}% | ID: {uuid_short}... ━━━")
         print(chunk["doc"])
         print()
     

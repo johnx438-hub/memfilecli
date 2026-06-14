@@ -88,9 +88,16 @@ pub struct ScriptsConfig {
     pub write_script: String,
     #[serde(default = "default_query_script")]
     pub query_script: String,
+    /// Phase 2: New scripts for Agent interface
+    #[serde(default = "default_get_script")]
+    pub get_script: String,
+    #[serde(default = "default_neighbors_script")]
+    pub neighbors_script: String,
 }
 fn default_write_script() -> String { format!("{}/src/write_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 fn default_query_script() -> String { format!("{}/src/query_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
+fn default_get_script() -> String { format!("{}/src/get_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
+fn default_neighbors_script() -> String { format!("{}/src/neighbors_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 
 impl Default for Config {
     fn default() -> Self {
@@ -173,8 +180,79 @@ impl Chunker {
         }
         chunks
     }
-    pub fn enhance(chunk: &str, filename: &str, date_str: &str) -> String {
-        format!("[文件名] {}\n[日期] {}\n\n{}", filename, date_str, chunk)
+    /// 增强 Chunk 内容并生成稳定 UUID + Summary + Links
+    /// 返回: (enhanced_content, uuid_string, summary_text, links_array)
+    pub fn enhance(chunk: &str, filename: &str, date_str: &str) -> (String, String, String, Vec<String>) {
+        let content = format!("[文件名] {}\n[日期] {}\n\n{}", filename, date_str, chunk);
+        let uuid = uuid::Uuid::new_v4().to_string();
+        let summary = Self::extract_summary(chunk, None);  // Use default length (100 chars)
+        let links = Self::extract_links(chunk);
+        (content, uuid, summary, links)
+    }
+
+    /// Phase 1.3: 解析 [[WikiLink]] 为原始文本链接数组
+    pub fn extract_links(text: &str) -> Vec<String> {
+        Regex::new(r"\[\[([^\]]+)\]\]").unwrap()
+            .captures_iter(text)
+            .map(|c| c.get(1).unwrap().as_str().to_string())
+            .collect()
+    }
+
+    const DEFAULT_SUMMARY_LENGTH: usize = 100;
+
+    /// 规则版摘要提取：取第一段或标题下第一句（截断到 max_length）
+    pub fn extract_summary(text: &str, max_length: Option<usize>) -> String {
+        let len = max_length.unwrap_or(Self::DEFAULT_SUMMARY_LENGTH);
+        // 策略 1: 如果有 ## 标题，取标题后的第一段
+        if let Some(pos) = text.find("## ") {
+            let after_heading = &text[pos + 3..];
+            let first_para = after_heading.split("\n\n").next().unwrap_or(after_heading);
+            let trimmed = first_para.trim();
+            if !trimmed.is_empty() {
+                return Self::truncate(trimmed, len);
+            }
+        }
+
+        // 策略 2: 取第一段（按空行分割）
+        let first_para = text.split("\n\n").next().unwrap_or(text);
+        let trimmed = first_para.trim();
+        if !trimmed.is_empty() {
+            return Self::truncate(trimmed, len);
+        }
+
+        // 策略 3: 兜底，取前 max_length 字符
+        Self::truncate(text.trim(), len)
+    }
+
+    /// 截断文本到指定长度（按字符数，处理多字节字符）
+    fn truncate(text: &str, max_chars: usize) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        if chars.len() <= max_chars {
+            return text.to_string();
+        }
+
+        // 取前 max_chars 个字符
+        let truncated: String = chars[..max_chars].iter().collect();
+
+        // 尝试在句号/换行处截断（按字符位置查找）
+        let mut last_break_pos = None;
+        for (i, &c) in chars[..max_chars].iter().enumerate() {
+            if c == '.' || c == '。' || c == '\n' || c == '!' || c == '！' {
+                last_break_pos = Some(i);
+            }
+        }
+
+        if let Some(pos) = last_break_pos {
+            if pos > max_chars / 2 {
+                let result: String = chars[..=pos].iter().collect();
+                return result;
+            }
+        }
+
+        // 兜底：直接截断并加省略号
+        let safe_len = max_chars.saturating_sub(3);
+        let result: String = chars[..safe_len].iter().collect();
+        format!("{}...", result)
     }
     pub fn extract_date(filename: &str) -> String {
         Regex::new(r"(\d\d\d\d\d\d\d\d)").unwrap().captures(filename).and_then(|c| c.get(1)).map(|m| m.as_str().to_string()).unwrap_or_else(|| "unknown".to_string())
@@ -271,6 +349,10 @@ impl IndexManager {
     Init, Config,
     Index { #[arg(long)] all: bool, #[arg(long)] dir: Option<String>, #[arg(long)] force_ollama: bool, #[arg(long)] rebuild: bool },
     Search { query: String, #[arg(short, long)] limit: Option<usize>, #[arg(long)] threshold: Option<u8>, #[arg(long, help = "Only show results on or after this date (YYYYMMDD)")] after: Option<String>, #[arg(long, help = "Only show results before this date (YYYYMMDD)")] before: Option<String> },
+    /// Phase 2: Get full context package for a chunk by UUID
+    Get { uuid: String, #[arg(long, default_value = "markdown", help = "Output format: markdown or json")] format: String },
+    /// Phase 2: List neighboring chunks (chunks that link to this one)
+    Neighbors { uuid: String, #[arg(long, default_value = "markdown", help = "Output format: markdown or json")] format: String },
     Stats, Verify, ListFiles,
 }
 
@@ -407,14 +489,17 @@ fn cmd_config() -> Result<()> {
     Ok(())
 }
 
-fn write_chunks_to_chromadb(db_path: &str, script_path: &str, collection_name: &str, filenames: &[String], dates: &[String], docs: &[String], embeddings: Option<Vec<Vec<f64>>>) -> Result<()> {
+fn write_chunks_to_chromadb(db_path: &str, script_path: &str, collection_name: &str, filenames: &[String], dates: &[String], docs: &[String], embeddings: Option<Vec<Vec<f64>>>, uuids: &[String], summaries: &[String], links: &[Vec<String>]) -> Result<()> {
     let payload = serde_json::json!({
         "db_path": db_path,
         "collection_name": collection_name,
         "chunks": docs,
         "filenames": filenames,
         "dates": dates,
-        "embeddings": embeddings
+        "embeddings": embeddings,
+        "uuids": uuids,  // Phase 1.1: UUID IDs for stable chunk references
+        "summaries": summaries,  // Phase 1.2: Summaries for Agent-first context
+        "links": links  // Phase 1.3: WikiLinks as raw text arrays
     });
     
     let mut child = Command::new("python3")
@@ -431,7 +516,9 @@ fn write_chunks_to_chromadb(db_path: &str, script_path: &str, collection_name: &
     let output = child.wait_with_output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!("ChromaDB write error: {}", stderr.lines().next().unwrap_or("unknown")));
+        // Show full traceback for debugging (first 500 chars)
+        let error_preview = stderr.chars().take(500).collect::<String>();
+        return Err(anyhow::anyhow!("ChromaDB write error:\n{}", error_preview));
     }
     
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -486,10 +573,13 @@ fn cmd_index(args: &IndexArgs) -> Result<()> {
         let mut new_filenames = Vec::new();
         let mut new_dates = Vec::new();
         let mut new_docs = Vec::new();
+        let mut new_uuids = Vec::new();  // Phase 1.1: UUID IDs
+        let mut new_summaries = Vec::new();  // Phase 1.2: Summaries
+        let mut new_links: Vec<Vec<String>> = Vec::new();  // Phase 1.3: WikiLinks
         let mut new_embeddings: Option<Vec<Vec<f64>>> = if use_ollama && config.embedding.backend == "ollama" { Some(Vec::new()) } else { None };
-        
+
         for chunk in &chunks {
-            let enhanced = Chunker::enhance(chunk, &filename, &date_str);
+            let (enhanced, uuid_str, summary, links) = Chunker::enhance(chunk, &filename, &date_str);
             
             if let Some(ref mut embeddings) = new_embeddings {
                 match embedder.embed(&enhanced) {
@@ -508,13 +598,16 @@ fn cmd_index(args: &IndexArgs) -> Result<()> {
             new_filenames.push(filename.clone());
             new_dates.push(date_str.clone());
             new_docs.push(enhanced);
+            new_uuids.push(uuid_str);  // Phase 1.1: Collect UUIDs
+            new_summaries.push(summary);  // Phase 1.2: Collect Summaries
+            new_links.push(links);  // Phase 1.3: Collect Links
         }
         
-        // Write chunks to ChromaDB via Python script with embeddings
+        // Write chunks to ChromaDB via Python script with embeddings, UUIDs, Summaries and Links
         if !new_docs.is_empty() {
             write_chunks_to_chromadb(&config.general.db_path, &config.scripts.write_script, 
                 &config.chromadb.collection_name,
-                &new_filenames, &new_dates, &new_docs, new_embeddings)?;
+                &new_filenames, &new_dates, &new_docs, new_embeddings, &new_uuids, &new_summaries, &new_links)?;
         }
         
         // Update metadata
@@ -587,6 +680,153 @@ fn cmd_list_files() -> Result<()> {
     Ok(())
 }
 
+/// Phase 2: Get full context package for a chunk by UUID
+fn cmd_get(uuid: &str, format: &str) -> Result<()> {
+    let config = Config::load()?;
+    
+    // Query ChromaDB for this specific UUID
+    let payload = serde_json::json!({
+        "db_path": config.general.db_path,
+        "collection_name": config.chromadb.collection_name,
+        "uuid": uuid
+    });
+    
+    let mut child = Command::new("python3")
+        .arg(&config.scripts.get_script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    
+    if let Some(ref mut stdin) = child.stdin {
+        stdin.write_all(payload.to_string().as_bytes())?;
+    }
+    
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("{} Get failed: {}", "❌".bright_red(), stderr.lines().next().unwrap_or("unknown"));
+        return Ok(());
+    }
+    
+    let stdout = String::from_utf8(output.stdout)?;
+    if stdout.trim().is_empty() {
+        println!("{} Chunk not found with UUID: {}", "🔍".bright_blue(), uuid.bright_cyan());
+        return Ok(());
+    }
+    
+    // Parse JSON result and format output
+    #[derive(serde::Deserialize)]
+    struct GetResult {
+        id: String,
+        filename: String,
+        date: String,
+        summary: String,
+        content: String,
+        links: Vec<String>,
+        chunk_order: usize,
+        total_chunks: usize
+    }
+    
+    if let Ok(result) = serde_json::from_str::<GetResult>(&stdout) {
+        match format {
+            "json" => {
+                // Output pure JSON for Agent consumption
+                println!("{}", stdout);
+            }
+            _ => {
+                // Default: Markdown Block (human readable + GUI friendly)
+                println!("## Node: {} [ID: {}]", result.filename.bright_cyan(), result.id.bright_yellow());
+                println!();
+                println!("**Summary**: {}", result.summary);
+                println!();
+                if !result.links.is_empty() {
+                    println!("**Links**:");
+                    for link in &result.links {
+                        println!("- [[{}]]", link);
+                    }
+                    println!();
+                }
+                println!("---");
+                println!("{}", result.content);
+            }
+        }
+    } else {
+        eprintln!("{} Failed to parse get result.", "❌".bright_red());
+    }
+    
+    Ok(())
+}
+
+/// Phase 2: List neighboring chunks (chunks that link to this one)
+fn cmd_neighbors(uuid: &str, format: &str) -> Result<()> {
+    let config = Config::load()?;
+    
+    // Query ChromaDB for neighbors
+    let payload = serde_json::json!({
+        "db_path": config.general.db_path,
+        "collection_name": config.chromadb.collection_name,
+        "uuid": uuid
+    });
+    
+    let mut child = Command::new("python3")
+        .arg(&config.scripts.neighbors_script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    
+    if let Some(ref mut stdin) = child.stdin {
+        stdin.write_all(payload.to_string().as_bytes())?;
+    }
+    
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("{} Neighbors query failed: {}", "❌".bright_red(), stderr.lines().next().unwrap_or("unknown"));
+        return Ok(());
+    }
+    
+    let stdout = String::from_utf8(output.stdout)?;
+    if stdout.trim().is_empty() {
+        println!("{} No neighbors found for UUID: {}", "🔍".bright_blue(), uuid.bright_cyan());
+        return Ok(());
+    }
+    
+    // Parse JSON result and format output
+    #[derive(serde::Deserialize)]
+    struct NeighborResult {
+        id: String,
+        filename: String,
+        summary: String,
+        relation: String
+    }
+    
+    if let Ok(neighbors) = serde_json::from_str::<Vec<NeighborResult>>(&stdout) {
+        match format {
+            "json" => {
+                println!("{}", stdout);
+            }
+            _ => {
+                println!("## Neighbors for [ID: {}]", uuid.bright_yellow());
+                println!();
+                for (i, n) in neighbors.iter().enumerate() {
+                    let arrow = match n.relation.as_str() {
+                        "prerequisite" => "⬅️",
+                        "contrasts_with" => "↔️",
+                        _ => "🔗"
+                    };
+                    println!("{}. {} {}: {}", i + 1, arrow, n.filename.bright_cyan(), n.summary);
+                }
+            }
+        }
+    } else {
+        eprintln!("{} Failed to parse neighbors result.", "❌".bright_red());
+    }
+    
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
@@ -594,6 +834,8 @@ fn main() -> Result<()> {
         Commands::Config => cmd_config(),
         Commands::Index { all: _, dir, force_ollama, rebuild } => cmd_index(&IndexArgs { all: true, dir, force_ollama, rebuild }),
         Commands::Search { query, limit, threshold, after, before } => cmd_search(&SearchArgs { query, limit, threshold, after, before }),
+        Commands::Get { uuid, format } => cmd_get(&uuid, &format),
+        Commands::Neighbors { uuid, format } => cmd_neighbors(&uuid, &format),
         Commands::Stats => cmd_stats(),
         Commands::Verify => cmd_verify(),
         Commands::ListFiles => cmd_list_files(),
