@@ -15,11 +15,18 @@ except Exception as e:
     print(f"ERROR|Collection not found|{e}", file=sys.stderr)
     sys.exit(1)
 
-# Step 1: Get the target chunk to extract its filename/links
-target_data = collection.get(ids=[target_uuid], include=["documents", "metadatas"])
-if not target_data["ids"]:
+# Step 1: Get the target chunk to extract its filename/links (support prefix matching)
+all_data = collection.get(include=["documents", "metadatas"])
+matched_id = None
+for item_id in all_data["ids"]:
+    if item_id == target_uuid or item_id.startswith(target_uuid):
+        matched_id = item_id
+        break
+if not matched_id:
     print("[]")  # Empty result if UUID not found
     sys.exit(0)
+
+target_data = collection.get(ids=[matched_id], include=["documents", "metadatas"])
 
 target_meta = target_data["metadatas"][0]
 target_filename = target_meta.get("filename", "")

@@ -348,7 +348,7 @@ impl IndexManager {
 #[derive(Subcommand)] enum Commands {
     Init, Config,
     Index { #[arg(long)] all: bool, #[arg(long)] dir: Option<String>, #[arg(long)] force_ollama: bool, #[arg(long)] rebuild: bool },
-    Search { query: String, #[arg(short, long)] limit: Option<usize>, #[arg(long)] threshold: Option<u8>, #[arg(long, help = "Only show results on or after this date (YYYYMMDD)")] after: Option<String>, #[arg(long, help = "Only show results before this date (YYYYMMDD)")] before: Option<String> },
+    Search { query: String, #[arg(short, long)] limit: Option<usize>, #[arg(long)] threshold: Option<u8>, #[arg(long, help = "Only show results on or after this date (YYYYMMDD)")] after: Option<String>, #[arg(long, help = "Only show results before this date (YYYYMMDD)")] before: Option<String>, #[arg(long, default_value = "text", help = "Output format: text or json")] format: String },
     /// Phase 2: Get full context package for a chunk by UUID
     Get { uuid: String, #[arg(long, default_value = "markdown", help = "Output format: markdown or json")] format: String },
     /// Phase 2: List neighboring chunks (chunks that link to this one)
@@ -359,7 +359,7 @@ impl IndexManager {
 fn read_line() -> Result<String> { let mut input = String::new(); std::io::stdin().read_line(&mut input)?; Ok(input) }
 
 pub struct IndexArgs { pub all: bool, pub dir: Option<String>, pub force_ollama: bool, pub rebuild: bool }
-pub struct SearchArgs { pub query: String, pub limit: Option<usize>, pub threshold: Option<u8>, pub after: Option<String>, pub before: Option<String> }
+pub struct SearchArgs { pub query: String, pub limit: Option<usize>, pub threshold: Option<u8>, pub after: Option<String>, pub before: Option<String>, pub format: String }
 
 fn cmd_search(args: &SearchArgs) -> Result<()> {
     let config = Config::load()?;
@@ -390,7 +390,8 @@ fn cmd_search(args: &SearchArgs) -> Result<()> {
         "limit": limit,
         "threshold": threshold as f64,
         "date_after": args.after.clone(),
-        "date_before": args.before.clone()
+        "date_before": args.before.clone(),
+        "format": args.format.clone()
     });
     
     let mut child = Command::new("python3")
@@ -564,6 +565,10 @@ fn cmd_index(args: &IndexArgs) -> Result<()> {
         
         let filename = file_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "unknown.md".to_string());
         let date_str = Chunker::extract_date(&filename);
+        
+        // Generate relative path from Chikusa_MemoRooms for cleaner display
+        let rel_path = file_str.replace("/home/archer/Chikusa_MemoRooms/", "");
+        
         let chunks = Chunker::chunk(&content, &config.chunking);
         
         // Delete old chunks from ChromaDB if file was previously indexed
@@ -579,7 +584,7 @@ fn cmd_index(args: &IndexArgs) -> Result<()> {
         let mut new_embeddings: Option<Vec<Vec<f64>>> = if use_ollama && config.embedding.backend == "ollama" { Some(Vec::new()) } else { None };
 
         for chunk in &chunks {
-            let (enhanced, uuid_str, summary, links) = Chunker::enhance(chunk, &filename, &date_str);
+            let (enhanced, uuid_str, summary, links) = Chunker::enhance(chunk, &rel_path, &date_str);
             
             if let Some(ref mut embeddings) = new_embeddings {
                 match embedder.embed(&enhanced) {
@@ -595,7 +600,7 @@ fn cmd_index(args: &IndexArgs) -> Result<()> {
                 added_count += 1;
             }
             
-            new_filenames.push(filename.clone());
+            new_filenames.push(rel_path.clone());
             new_dates.push(date_str.clone());
             new_docs.push(enhanced);
             new_uuids.push(uuid_str);  // Phase 1.1: Collect UUIDs
@@ -833,7 +838,7 @@ fn main() -> Result<()> {
         Commands::Init => cmd_init(),
         Commands::Config => cmd_config(),
         Commands::Index { all: _, dir, force_ollama, rebuild } => cmd_index(&IndexArgs { all: true, dir, force_ollama, rebuild }),
-        Commands::Search { query, limit, threshold, after, before } => cmd_search(&SearchArgs { query, limit, threshold, after, before }),
+        Commands::Search { query, limit, threshold, after, before, format } => cmd_search(&SearchArgs { query, limit, threshold, after, before, format }),
         Commands::Get { uuid, format } => cmd_get(&uuid, &format),
         Commands::Neighbors { uuid, format } => cmd_neighbors(&uuid, &format),
         Commands::Stats => cmd_stats(),

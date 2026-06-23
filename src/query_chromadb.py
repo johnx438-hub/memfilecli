@@ -13,6 +13,7 @@ limit = payload.get("limit", 5)
 threshold = payload.get("threshold", 30.0)
 date_after = payload.get("date_after")
 date_before = payload.get("date_before")
+output_format = payload.get("format", "text")  # text or json
 
 client = chromadb.PersistentClient(path=db_path)
 try:
@@ -85,6 +86,7 @@ sorted_groups = sorted(file_groups.values(),
                        reverse=True)
 
 # Step 5: Format output - limit to original limit number of files, max 2 chunks per file
+output_files = []
 output_count = 0
 for group in sorted_groups:
     if output_count >= limit:
@@ -93,20 +95,52 @@ for group in sorted_groups:
     # Take at most 2 chunks per file (to keep output concise)
     selected_chunks = group[:min(2, len(group))]
     
-    # Print file header
-    filename = group[0]["parent_file"]
+    # Build file result
+    full_path = group[0]["parent_file"]
+    rel_path = full_path.replace("/home/archer/Chikusa_MemoRooms/", "")
     date_str = group[0]["date"]
     total_hit = len(selected_chunks)
     total_available = group[0]["total_chunks"]
     
-    print(f"--- 📄 {filename} ---")
-    print(f"📅 日期：{date_str} | 🧩 命中切片：{total_hit}/{total_available}")
-    print()
+    file_result = {
+        "path": rel_path,
+        "full_path": full_path,
+        "date": date_str,
+        "total_chunks": total_available,
+        "matched_chunks": total_hit,
+        "chunks": []
+    }
     
     for chunk in selected_chunks:
         uuid_short = chunk.get('uuid', 'N/A')[:8] if chunk.get('uuid', 'N/A') != 'N/A' else 'N/A'
-        print(f"━━━ [切片 {chunk['chunk_order']}/{total_available}] 匹配度：{chunk['score']}% | ID: {uuid_short}... ━━━")
-        print(chunk["doc"])
-        print()
+        
+        chunk_data = {
+            "chunk_order": chunk['chunk_order'],
+            "score": chunk['score'],
+            "uuid_short": uuid_short,
+            "content": chunk["doc"]
+        }
+        file_result["chunks"].append(chunk_data)
     
+    output_files.append(file_result)
     output_count += len(selected_chunks)
+
+# Output based on format
+if output_format == "json":
+    # JSON format for Agent consumption
+    print(json.dumps({
+        "query": query_text,
+        "total_results": len(output_files),
+        "files": output_files
+    }, indent=2, ensure_ascii=False))
+else:
+    # Text format (default) for human readability
+    for file_result in output_files:
+        print(f"--- 📄 {file_result['path']} ---")
+        print(f"📅 日期：{file_result['date']} | 🧩 命中切片：{file_result['matched_chunks']}/{file_result['total_chunks']}")
+        print()
+        
+        for chunk in file_result["chunks"]:
+            print(f"━━━ [切片 {chunk['chunk_order']}/{file_result['total_chunks']}] 匹配度：{chunk['score']}% | ID: {chunk['uuid_short']}... ━━━")
+            print(chunk["content"])
+            print()
