@@ -93,11 +93,15 @@ pub struct ScriptsConfig {
     pub get_script: String,
     #[serde(default = "default_neighbors_script")]
     pub neighbors_script: String,
+    /// Recent chunks script
+    #[serde(default = "default_recent_script")]
+    pub recent_script: String,
 }
 fn default_write_script() -> String { format!("{}/src/write_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 fn default_query_script() -> String { format!("{}/src/query_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 fn default_get_script() -> String { format!("{}/src/get_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 fn default_neighbors_script() -> String { format!("{}/src/neighbors_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
+fn default_recent_script() -> String { format!("{}/src/recent_chromadb.py", env!("CARGO_MANIFEST_DIR")) }
 
 impl Default for Config {
     fn default() -> Self {
@@ -353,6 +357,8 @@ impl IndexManager {
     Get { uuid: String, #[arg(long, default_value = "markdown", help = "Output format: markdown or json")] format: String },
     /// Phase 2: List neighboring chunks (chunks that link to this one)
     Neighbors { uuid: String, #[arg(long, default_value = "markdown", help = "Output format: markdown or json")] format: String },
+    /// List recent chunks by date (most recent first)
+    Recent { #[arg(short, long)] limit: Option<usize>, #[arg(long, default_value = "text", help = "Output format: text or json")] format: String },
     Stats, Verify, ListFiles,
 }
 
@@ -360,6 +366,7 @@ fn read_line() -> Result<String> { let mut input = String::new(); std::io::stdin
 
 pub struct IndexArgs { pub all: bool, pub dir: Option<String>, pub force_ollama: bool, pub rebuild: bool }
 pub struct SearchArgs { pub query: String, pub limit: Option<usize>, pub threshold: Option<u8>, pub after: Option<String>, pub before: Option<String>, pub format: String }
+pub struct RecentArgs { pub limit: Option<usize>, pub format: String }
 
 fn cmd_search(args: &SearchArgs) -> Result<()> {
     let config = Config::load()?;
@@ -415,6 +422,53 @@ fn cmd_search(args: &SearchArgs) -> Result<()> {
     let stdout = String::from_utf8(output.stdout)?;
     if stdout.trim().is_empty() {
         println!("{} No related memories found (below threshold).", "🔍".bright_blue());
+        return Ok(());
+    }
+    
+    // Directly pass through Python's clustered and formatted output
+    print!("{}", stdout);
+    
+    Ok(())
+}
+
+fn cmd_recent(args: &RecentArgs) -> Result<()> {
+    let config = Config::load()?;
+    
+    // Use CLI args if provided, otherwise fall back to config defaults
+    let limit = args.limit.unwrap_or(config.search.default_limit);
+    
+    println!("📅 Listing recent chunks (limit: {})", limit.to_string().bright_cyan());
+    println!();
+    
+    // Send query via stdin JSON payload
+    let payload = serde_json::json!({
+        "db_path": config.general.db_path,
+        "collection_name": config.chromadb.collection_name,
+        "limit": limit,
+        "format": args.format.clone()
+    });
+    
+    let mut child = Command::new("python3")
+        .arg(&config.scripts.recent_script)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    
+    if let Some(ref mut stdin) = child.stdin {
+        stdin.write_all(payload.to_string().as_bytes())?;
+    }
+    
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("{} ChromaDB recent query failed: {}", "❌".bright_red(), stderr.lines().next().unwrap_or("unknown"));
+        return Ok(());
+    }
+    
+    let stdout = String::from_utf8(output.stdout)?;
+    if stdout.trim().is_empty() {
+        println!("{} No chunks found in database.", "📭".bright_blue());
         return Ok(());
     }
     
@@ -841,6 +895,7 @@ fn main() -> Result<()> {
         Commands::Search { query, limit, threshold, after, before, format } => cmd_search(&SearchArgs { query, limit, threshold, after, before, format }),
         Commands::Get { uuid, format } => cmd_get(&uuid, &format),
         Commands::Neighbors { uuid, format } => cmd_neighbors(&uuid, &format),
+        Commands::Recent { limit, format } => cmd_recent(&RecentArgs { limit, format }),
         Commands::Stats => cmd_stats(),
         Commands::Verify => cmd_verify(),
         Commands::ListFiles => cmd_list_files(),
